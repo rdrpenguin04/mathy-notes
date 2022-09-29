@@ -258,7 +258,7 @@ fn parse_atom<I: Iterator<Item = Lexeme>>(iter: &mut Peekable<I>) -> Result<Expr
             ty: TokenType::Sym,
             text,
         })) if ["*", "/", "^"].contains(&text.deref()) => Err(Error::Invalid),
-        x => todo!("{:?}", x),
+        _ => Err(Error::Unrecognized),
     }
 }
 
