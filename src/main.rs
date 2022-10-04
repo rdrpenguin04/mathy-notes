@@ -90,7 +90,7 @@ fn lex<I: Iterator<Item = char>>(text: &mut Peekable<I>, term: char) -> Result<V
                     ty: TokenType::Id,
                 }));
             }
-            x if x.is_numeric() => {
+            x if x.is_numeric() || x == '.' => {
                 let mut token = String::from(x);
                 text.next();
                 while let Some(x) = text.peek() {
