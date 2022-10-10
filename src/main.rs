@@ -1,3 +1,6 @@
+#![feature(anonymous_lifetime_in_impl_trait)]
+#![windows_subsystem = "windows"]
+
 use eframe::egui::{self, Modifiers, Ui};
 use std::ops::Deref;
 use std::{fmt, iter::Peekable};
@@ -231,15 +234,17 @@ fn parse_num(text: &str) -> Result<f64> {
     Ok(int_part as f64 + float_part as f64)
 }
 
-fn parse_atom<I: Iterator<Item = Lexeme>>(iter: &mut Peekable<I>) -> Result<Expression> {
+fn parse_atom(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expression> {
     match iter.next() {
         Some(Lexeme::Token(Token {
             ty: TokenType::Num,
             text,
         })) => Ok(Expression::Num(parse_num(&text)?)),
-        Some(Lexeme::Group(Group {
-            inner,
-        })) => parse_bp(&mut inner.into_iter().peekable(), 0),
+        Some(Lexeme::Token(Token {
+            ty: TokenType::Id,
+            text,
+        })) if text == "pi" => Ok(Expression::Num(core::f64::consts::PI)),
+        Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.into_iter().peekable(), 0),
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
@@ -262,36 +267,43 @@ fn parse_atom<I: Iterator<Item = Lexeme>>(iter: &mut Peekable<I>) -> Result<Expr
     }
 }
 
-fn parse_bp<I: Iterator<Item = Lexeme>>(iter: &mut Peekable<I>, min_bp: u8) -> Result<Expression> {
+fn parse_bp(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>, min_bp: u8) -> Result<Expression> {
     let mut lhs = parse_atom(iter)?;
 
     loop {
-        let op = match iter.peek() {
+        match iter.peek() {
             None => break,
             Some(Lexeme::Token(Token {
                 ty: TokenType::Sym,
                 text,
-            })) => text,
-            x => todo!("{:?}", x),
-        }
-        .clone();
-        let (l_bp, r_bp) = bin_bp(&op);
-        if l_bp < min_bp {
-            break;
-        }
-        iter.next();
-        let rhs = parse_bp(iter, r_bp)?;
-        lhs = Expression::BinOp {
-            lhs: Box::new(lhs),
-            op: match op.deref() {
-                "+" => BinOp::Add,
-                "-" => BinOp::Sub,
-                "*" => BinOp::Mul,
-                "/" => BinOp::Div,
-                "^" | "**" => BinOp::Pow,
-                _ => unreachable!(),
-            },
-            rhs: Box::new(rhs),
+            })) => {
+                let op = text;
+                let (l_bp, r_bp) = bin_bp(&op);
+                if l_bp < min_bp {
+                    break;
+                }
+                iter.next();
+                let rhs = parse_bp(iter, r_bp)?;
+                lhs = Expression::BinOp {
+                    lhs: Box::new(lhs),
+                    op: match op.deref() {
+                        "+" => BinOp::Add,
+                        "-" => BinOp::Sub,
+                        "*" => BinOp::Mul,
+                        "/" => BinOp::Div,
+                        "^" | "**" => BinOp::Pow,
+                        _ => unreachable!(),
+                    },
+                    rhs: Box::new(rhs),
+                }
+            }
+            _ => {
+                lhs = Expression::BinOp {
+                    lhs: Box::new(lhs),
+                    op: BinOp::Mul,
+                    rhs: Box::new(parse_atom(iter)?),
+                };
+            }
         }
     }
 
@@ -300,7 +312,7 @@ fn parse_bp<I: Iterator<Item = Lexeme>>(iter: &mut Peekable<I>, min_bp: u8) -> R
 
 fn parse(text: &str) -> Result<Expression> {
     let lexed = lex(&mut text.chars().peekable(), '\0')?;
-    parse_bp(&mut lexed.into_iter().peekable(), 0)
+    parse_bp(&mut lexed.iter().peekable(), 0)
 }
 
 fn evaluate(text: &str) -> Result<f64> {
