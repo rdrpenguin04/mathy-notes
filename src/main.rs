@@ -406,7 +406,7 @@ impl eframe::App for NotesApp {
                 x.consume_key(Modifiers::CTRL, egui::Key::Enter)
                     || x.consume_key(Modifiers::SHIFT, egui::Key::Enter)
             });
-            ui.add_sized(ui.available_size(), move |ui: &mut Ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| ui.add_sized(ui.available_size(), move |ui: &mut Ui| {
                 let text_edit = egui::TextEdit::multiline(&mut self.notes_text);
                 let mut output = text_edit.show(ui);
                 if eval {
@@ -447,7 +447,7 @@ impl eframe::App for NotesApp {
                     }
                 }
                 output.response
-            });
+            }));
         });
     }
 
