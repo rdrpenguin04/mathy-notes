@@ -10,7 +10,8 @@ fn main() {
         "Notes",
         native_options,
         Box::new(|cc| Box::new(NotesApp::new(cc))),
-    );
+    )
+    .unwrap();
 }
 
 #[derive(Default)]
@@ -401,10 +402,10 @@ fn evaluate(text: &str) -> Result<f64> {
 impl eframe::App for NotesApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut input_mut = ui.input_mut();
-            let eval = input_mut.consume_key(Modifiers::CTRL, egui::Key::Enter)
-                || input_mut.consume_key(Modifiers::SHIFT, egui::Key::Enter);
-            drop(input_mut);
+            let eval = ui.input_mut(|x| {
+                x.consume_key(Modifiers::CTRL, egui::Key::Enter)
+                    || x.consume_key(Modifiers::SHIFT, egui::Key::Enter)
+            });
             ui.add_sized(ui.available_size(), move |ui: &mut Ui| {
                 let text_edit = egui::TextEdit::multiline(&mut self.notes_text);
                 let mut output = text_edit.show(ui);
