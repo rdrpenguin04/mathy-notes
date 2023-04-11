@@ -2,7 +2,6 @@
 #![windows_subsystem = "windows"]
 
 use eframe::egui::{self, Modifiers, Ui};
-use std::ops::Deref;
 use std::{fmt, iter::Peekable};
 
 fn main() {
@@ -21,13 +20,9 @@ struct NotesApp {
 
 impl NotesApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        if let Some(storage) = cc.storage {
-            Self {
-                notes_text: storage.get_string("notes_text").unwrap_or_default(),
-            }
-        } else {
-            Self::default()
-        }
+        cc.storage.map_or_else(Self::default, |storage| Self {
+            notes_text: storage.get_string("notes_text").unwrap_or_default(),
+        })
     }
 }
 
@@ -158,10 +153,20 @@ enum BinOp {
     Pow,
 }
 
-#[derive(Debug)]
 enum UnOp {
+    Fn(Box<dyn Fn(f64) -> Result<f64>>),
     Pos,
     Neg,
+}
+
+impl fmt::Debug for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fn(_) => write!(f, "fn()"),
+            Self::Pos => write!(f, "+"),
+            Self::Neg => write!(f, "-"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -179,41 +184,43 @@ enum Expression {
 }
 
 impl Expression {
-    fn eval(&self) -> f64 {
-        match self {
+    fn eval(&self) -> Result<f64> {
+        Ok(match self {
             Self::BinOp { lhs, op, rhs } => match op {
-                BinOp::Add => lhs.eval() + rhs.eval(),
-                BinOp::Sub => lhs.eval() - rhs.eval(),
-                BinOp::Mul => lhs.eval() * rhs.eval(),
-                BinOp::Div => lhs.eval() / rhs.eval(),
-                BinOp::Pow => lhs.eval().powf(rhs.eval()),
+                BinOp::Add => lhs.eval()? + rhs.eval()?,
+                BinOp::Sub => lhs.eval()? - rhs.eval()?,
+                BinOp::Mul => lhs.eval()? * rhs.eval()?,
+                BinOp::Div => lhs.eval()? / rhs.eval()?,
+                BinOp::Pow => lhs.eval()?.powf(rhs.eval()?),
             },
             Self::UnOp { op, inner } => match op {
-                UnOp::Pos => inner.eval(),
-                UnOp::Neg => -inner.eval(),
+                UnOp::Pos => inner.eval()?,
+                UnOp::Neg => -inner.eval()?,
+                UnOp::Fn(x) => x(inner.eval()?)?,
             },
             Self::Num(x) => *x,
-        }
+        })
     }
 }
 
 fn bin_bp(op: &str) -> (u8, u8) {
     match op {
         "+" | "-" => (1, 2),
-        "*" | "/" => (3, 4),
-        "^" | "**" => (6, 5),
+        " " => (3, 4),
+        "*" | "/" => (5, 6),
+        "^" | "**" => (8, 7),
         _ => unreachable!(),
     }
 }
 
 fn parse_num(text: &str) -> Result<f64> {
     let mut int_part = 0.0;
-    let mut chars = text.chars().peekable();
+    let mut chars = text.chars();
     for c in &mut chars {
         match c {
             '0'..='9' => {
                 int_part *= 10.0;
-                int_part += (c as u32 - '0' as u32) as f64;
+                int_part += f64::from(c as u32 - '0' as u32);
             }
             '.' => break,
             _ => Err(Error::Invalid)?,
@@ -224,14 +231,21 @@ fn parse_num(text: &str) -> Result<f64> {
     for c in &mut chars {
         match c {
             '0'..='9' => {
-                float_part += (c as u32 - '0' as u32) as f64 * multiplier;
+                float_part += f64::from(c as u32 - '0' as u32) * multiplier;
                 multiplier /= 10.0;
             }
             '.' => break,
             _ => Err(Error::Invalid)?,
         }
     }
-    Ok(int_part as f64 + float_part as f64)
+    Ok(int_part + float_part)
+}
+
+fn parse_arg(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expression> {
+    match iter.peek() {
+        Some(Lexeme::Group(_)) => parse_atom(iter),
+        _ => parse_bp(iter, 4),
+    }
 }
 
 fn parse_atom(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expression> {
@@ -239,30 +253,95 @@ fn parse_atom(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expr
         Some(Lexeme::Token(Token {
             ty: TokenType::Num,
             text,
-        })) => Ok(Expression::Num(parse_num(&text)?)),
+        })) => Ok(Expression::Num(parse_num(text)?)),
         Some(Lexeme::Token(Token {
             ty: TokenType::Id,
             text,
-        })) if text == "pi" => Ok(Expression::Num(core::f64::consts::PI)),
-        Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.into_iter().peekable(), 0),
+        })) => match &**text {
+            "sin" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.sin()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "cos" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.cos()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "tan" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.tan()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "sec" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.cos()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "csc" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.sin()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "cot" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.tan()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "asin" | "arcsin" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.asin()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "acos" | "arccos" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.acos()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "atan" | "arctan" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.atan()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "asec" | "arcsec" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).acos()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "acsc" | "arccsc" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).asin()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "acot" | "arccot" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).atan()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "loge" | "ln" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.ln()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "log" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.log10()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "log2" | "lb" => Ok(Expression::UnOp {
+                op: UnOp::Fn(Box::new(|x| Ok(x.log2()))),
+                inner: Box::new(parse_arg(iter)?),
+            }),
+            "e" => Ok(Expression::Num(core::f64::consts::E)),
+            "pi" => Ok(Expression::Num(core::f64::consts::PI)),
+            "tau" => Ok(Expression::Num(core::f64::consts::TAU)),
+            _ => Err(Error::Unrecognized),
+        },
+        Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.iter().peekable(), 0),
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
         })) if text == "+" => Ok(Expression::UnOp {
             op: UnOp::Pos,
-            inner: Box::new(parse_bp(iter, 5)?),
+            inner: Box::new(parse_bp(iter, 7)?),
         }),
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
         })) if text == "-" => Ok(Expression::UnOp {
             op: UnOp::Neg,
-            inner: Box::new(parse_bp(iter, 5)?),
+            inner: Box::new(parse_bp(iter, 7)?),
         }),
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
-        })) if ["*", "/", "^"].contains(&text.deref()) => Err(Error::Invalid),
+        })) if ["*", "/", "^"].contains(&&**text) => Err(Error::Invalid),
         _ => Err(Error::Unrecognized),
     }
 }
@@ -278,7 +357,7 @@ fn parse_bp(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>, min_bp: u8) -> R
                 text,
             })) => {
                 let op = text;
-                let (l_bp, r_bp) = bin_bp(&op);
+                let (l_bp, r_bp) = bin_bp(op);
                 if l_bp < min_bp {
                     break;
                 }
@@ -286,7 +365,7 @@ fn parse_bp(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>, min_bp: u8) -> R
                 let rhs = parse_bp(iter, r_bp)?;
                 lhs = Expression::BinOp {
                     lhs: Box::new(lhs),
-                    op: match op.deref() {
+                    op: match &**op {
                         "+" => BinOp::Add,
                         "-" => BinOp::Sub,
                         "*" => BinOp::Mul,
@@ -301,7 +380,7 @@ fn parse_bp(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>, min_bp: u8) -> R
                 lhs = Expression::BinOp {
                     lhs: Box::new(lhs),
                     op: BinOp::Mul,
-                    rhs: Box::new(parse_atom(iter)?),
+                    rhs: Box::new(parse_arg(iter)?),
                 };
             }
         }
@@ -316,8 +395,7 @@ fn parse(text: &str) -> Result<Expression> {
 }
 
 fn evaluate(text: &str) -> Result<f64> {
-    let parsed = parse(text)?;
-    Ok(parsed.eval())
+    parse(text)?.eval()
 }
 
 impl eframe::App for NotesApp {
@@ -332,17 +410,16 @@ impl eframe::App for NotesApp {
                 let mut output = text_edit.show(ui);
                 if eval {
                     if let Some(cursor) = output.cursor_range {
-                        let pind = cursor.primary.ccursor.index;
-                        let sind = cursor.secondary.ccursor.index;
-                        let start = if pind == sind {
-                            self.notes_text[..pind]
+                        let p_idx = cursor.primary.ccursor.index;
+                        let s_idx = cursor.secondary.ccursor.index;
+                        let start = if p_idx == s_idx {
+                            self.notes_text[..p_idx]
                                 .rfind(|x| x == '=' || x == '\n')
-                                .map(|x| x + 1)
-                                .unwrap_or(0)
+                                .map_or(0, |x| x + 1)
                         } else {
-                            pind.min(sind)
+                            p_idx.min(s_idx)
                         };
-                        let end = pind.max(sind);
+                        let end = p_idx.max(s_idx);
                         let text = &self.notes_text[start..end];
                         let result = evaluate(text);
                         let insertion = format!(
