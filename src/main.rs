@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+#![warn(clippy::pedantic, clippy::nursery)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![windows_subsystem = "windows"]
 
@@ -160,6 +162,12 @@ enum UnOp {
     Neg,
 }
 
+impl UnOp {
+    fn func(func: impl Fn(f64) -> Result<f64> + 'static) -> Self {
+        Self::Fn(Box::new(func))
+    }
+}
+
 impl fmt::Debug for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -182,6 +190,15 @@ enum Expression {
         inner: Box<Expression>,
     },
     Num(f64),
+}
+
+impl Expression {
+    fn func(func: impl Fn(f64) -> Result<f64> + 'static, arg: Self) -> Self {
+        Self::UnOp {
+            op: UnOp::func(func),
+            inner: Box::new(arg),
+        }
+    }
 }
 
 impl Expression {
@@ -250,101 +267,59 @@ fn parse_arg(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expre
 }
 
 fn parse_atom(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expression> {
-    match iter.next() {
+    Ok(match iter.next() {
         Some(Lexeme::Token(Token {
             ty: TokenType::Num,
             text,
-        })) => Ok(Expression::Num(parse_num(text)?)),
+        })) => Expression::Num(parse_num(text)?),
         Some(Lexeme::Token(Token {
             ty: TokenType::Id,
             text,
         })) => match &**text {
-            "sin" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.sin()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "cos" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.cos()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "tan" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.tan()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "sec" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.cos()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "csc" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.sin()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "cot" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(1.0 / x.tan()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "asin" | "arcsin" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.asin()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "acos" | "arccos" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.acos()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "atan" | "arctan" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.atan()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "asec" | "arcsec" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).acos()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "acsc" | "arccsc" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).asin()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "acot" | "arccot" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok((1.0 / x).atan()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "loge" | "ln" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.ln()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "log" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.log10()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "log2" | "lb" => Ok(Expression::UnOp {
-                op: UnOp::Fn(Box::new(|x| Ok(x.log2()))),
-                inner: Box::new(parse_arg(iter)?),
-            }),
-            "e" => Ok(Expression::Num(core::f64::consts::E)),
-            "pi" => Ok(Expression::Num(core::f64::consts::PI)),
-            "tau" => Ok(Expression::Num(core::f64::consts::TAU)),
-            _ => Err(Error::Unrecognized),
+            "sin" => Expression::func(|x| Ok(x.sin()), parse_arg(iter)?),
+            "cos" => Expression::func(|x| Ok(x.cos()), parse_arg(iter)?),
+            "tan" => Expression::func(|x| Ok(x.tan()), parse_arg(iter)?),
+            "sec" => Expression::func(|x| Ok(1.0 / x.cos()), parse_arg(iter)?),
+            "csc" => Expression::func(|x| Ok(1.0 / x.sin()), parse_arg(iter)?),
+            "cot" => Expression::func(|x| Ok(1.0 / x.tan()), parse_arg(iter)?),
+            "asin" | "arcsin" => Expression::func(|x| Ok(x.asin()), parse_arg(iter)?),
+            "acos" | "arccos" => Expression::func(|x| Ok(x.acos()), parse_arg(iter)?),
+            "atan" | "arctan" => Expression::func(|x| Ok(x.atan()), parse_arg(iter)?),
+            "asec" | "arcsec" => Expression::func(|x| Ok((1.0 / x).acos()), parse_arg(iter)?),
+            "acsc" | "arccsc" => Expression::func(|x| Ok((1.0 / x).asin()), parse_arg(iter)?),
+            "acot" | "arccot" => Expression::func(|x| Ok((1.0 / x).atan()), parse_arg(iter)?),
+            "loge" | "ln" => Expression::func(|x| Ok(x.ln()), parse_arg(iter)?),
+            "log10" | "log" => Expression::func(|x| Ok(x.log10()), parse_arg(iter)?),
+            "log2" | "lb" => Expression::func(|x| Ok(x.log2()), parse_arg(iter)?),
+            "sqrt" => Expression::func(|x| Ok(x.sqrt()), parse_arg(iter)?),
+            "cbrt" => Expression::func(|x| Ok(x.cbrt()), parse_arg(iter)?),
+            "abs" => Expression::func(|x| Ok(x.abs()), parse_arg(iter)?),
+            "e" => Expression::Num(core::f64::consts::E),
+            "pi" => Expression::Num(core::f64::consts::PI),
+            "tau" => Expression::Num(core::f64::consts::TAU),
+            _ => Err(Error::Unrecognized)?,
         },
-        Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.iter().peekable(), 0),
+        Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.iter().peekable(), 0)?,
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
-        })) if text == "+" => Ok(Expression::UnOp {
+        })) if text == "+" => Expression::UnOp {
             op: UnOp::Pos,
             inner: Box::new(parse_bp(iter, 7)?),
-        }),
+        },
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
-        })) if text == "-" => Ok(Expression::UnOp {
+        })) if text == "-" => Expression::UnOp {
             op: UnOp::Neg,
             inner: Box::new(parse_bp(iter, 7)?),
-        }),
+        },
         Some(Lexeme::Token(Token {
             ty: TokenType::Sym,
             text,
-        })) if ["*", "/", "^"].contains(&&**text) => Err(Error::Invalid),
-        _ => Err(Error::Unrecognized),
-    }
+        })) if ["*", "/", "^"].contains(&&**text) => Err(Error::Invalid)?,
+        _ => Err(Error::Unrecognized)?,
+    })
 }
 
 fn parse_bp(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>, min_bp: u8) -> Result<Expression> {
