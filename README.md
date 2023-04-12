@@ -4,7 +4,7 @@ A good friend of mine wanted a README file on this project. Thus, there is now a
 
 ## Installing
 
-If you don't have Rust; get it from http://rustup.rs. After that, run `cargo install mathy-editor`, and you're done!
+If you don't have Rust; get it from http://rustup.rs. After that, run `cargo install mathy-notes`, and you're done!
 
 ## Usage
 
