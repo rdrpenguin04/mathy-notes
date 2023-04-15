@@ -56,5 +56,5 @@ jobs:
         name: "Publish build"
         with:
           name: mathy-notes_${{ matrix.target }}
-          path: artifacts/mathy_notes*
+          path: artifacts/* # this will only be mathy-notes or mathy-notes.exe depending on target
       
