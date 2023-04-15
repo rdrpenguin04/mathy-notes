@@ -54,7 +54,7 @@ jobs:
           args: --release --all-features --target ${{ matrix.target }}
 
       # Get current version from Cargo.toml
-      - uses: SebRollen/toml-action@v1
+      - uses: SebRollen/toml-action@v1.0.2
         id: read_project_version # this ID is how we refer to the output of the step
         with:
           file: Cargo.toml
