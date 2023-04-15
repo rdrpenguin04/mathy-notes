@@ -41,7 +41,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --all-features --target ${{ matrix.target }}
+          args: --release --all-features --target ${{ matrix.target }} --out-dir "artifacts"
 
       # Run tests before we publish an artifact... just in case :)
       - uses: actions-rs/cargo@v1
@@ -56,5 +56,5 @@ jobs:
         name: "Publish build"
         with:
           name: mathy-notes_${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/mathy_notes?(.exe)
+          path: artifacts/mathy_notes*
       
