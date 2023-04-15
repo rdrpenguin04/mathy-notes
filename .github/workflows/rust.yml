@@ -1,6 +1,4 @@
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -19,9 +17,9 @@ jobs:
       matrix:
         target: [
           x86_64-pc-windows-gnu,
-          x86_64-unknown-linux-musl
+          x86_64-pc-linux-gnu
         ]
-    
+
     steps:
       # Checkout repository
       - uses: actions/checkout@v3
@@ -64,5 +62,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         name: "Publish build"
         with:
-          name: mathy-notes_${{ steps.read_project_version.outputs.value }}_${{ matrix.target }}
+          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_${{ matrix.target }}
           path: artifacts/*
