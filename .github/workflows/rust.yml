@@ -4,16 +4,18 @@ on:
   pull_request:
     branches: [ main ]
 
+name: Rust Build
+
 jobs:
-  release:
-    name: Release ${{ matrix.target }}
+  build:
+    name: Build for ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       # If a build fails for a given platform, its probably gonna
       # fail on the other platforms as well. Just give up.
       fail-fast: true
 
-      # Matrices are really cool...
+      # Specify targets to build for here
       matrix:
         target: [
           x86_64-pc-windows-gnu,
@@ -22,7 +24,7 @@ jobs:
     
     steps:
       # Checkout repository
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # Get nightly toolchain
       - uses: actions-rs/toolchain@v1
@@ -51,10 +53,16 @@ jobs:
           command: test
           args: --release --all-features --target ${{ matrix.target }}
 
+      # Get current version from Cargo.toml
+      - uses: SebRollen/toml-action@v1
+        id: read_project_version # this ID is how we refer to the output of the step
+        with:
+          file: Cargo.toml
+          field: package.version
+
       # Publish build artifact
       - uses: actions/upload-artifact@v3
         name: "Publish build"
         with:
-          name: mathy-notes_${{ matrix.target }}
-          path: artifacts/* # this will only be mathy-notes or mathy-notes.exe depending on target
-      
+          name: mathy-notes_${{ steps.read_project_version.outputs.value }}_${{ matrix.target }}
+          path: artifacts/*
