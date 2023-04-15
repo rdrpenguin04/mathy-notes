@@ -21,15 +21,23 @@ jobs:
         ]
     
     steps:
-      # Checkout branch and install nightly toolchain
+      # Checkout repository
       - uses: actions/checkout@v2
+
+      # Get nightly toolchain
       - uses: actions-rs/toolchain@v1
+        name: Install nightly toolchain
         with:
           toolchain: nightly
           target: ${{ matrix.target }}
 
+      # Set default toolchain to nightly
+      - name: "Set nightly as default toolchain"
+        run: rustup default nightly
+
       # Make release build for target platform
       - uses: actions-rs/cargo@v1
+        name: "Build (release)"
         with:
           use-cross: true
           command: build
@@ -37,6 +45,7 @@ jobs:
 
       # Run tests before we publish an artifact... just in case :)
       - uses: actions-rs/cargo@v1
+        name: "Run tests"
         with:
           use-cross: true
           command: test
@@ -44,6 +53,7 @@ jobs:
 
       # Publish build artifact
       - uses: actions/upload-artifact@v3
+        name: "Publish build"
         with:
           name: mathy-notes_${{ matrix.target }}
           path: target/${{ matrix.target }}/release/mathy_notes?(.exe)
