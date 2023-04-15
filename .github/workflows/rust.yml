@@ -1,5 +1,6 @@
 on:
   workflow_dispatch:
+    # Special inputs go here... but we have none
     
   pull_request:
     branches: [ main ]
