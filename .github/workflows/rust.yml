@@ -1,27 +1,69 @@
-name: Rust
-
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    # Special inputs go here... but we have none
+    
   pull_request:
     branches: [ main ]
 
-env:
-  CARGO_TERM_COLOR: always
+name: Rust Build
 
 jobs:
   build:
+    name: Build for ${{ matrix.target }}
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Install nightly
-      run: |
-        rustup toolchain add nightly
-        rustup update
-    - name: Build
-      run: cargo +nightly build --verbose
-    - name: Run tests
-      run: cargo +nightly test --verbose
+    strategy:
+      # If a build fails for a given platform, its probably gonna
+      # fail on the other platforms as well. Just give up.
+      fail-fast: true
 
+      # Specify targets to build for here
+      matrix:
+        target: [
+          x86_64-pc-windows-gnu,
+          x86_64-unknown-linux-gnu
+        ]
+
+    steps:
+      # Checkout repository
+      - uses: actions/checkout@v3
+
+      # Get nightly toolchain
+      - uses: actions-rs/toolchain@v1
+        name: Install nightly toolchain
+        with:
+          toolchain: nightly
+          target: ${{ matrix.target }}
+
+      # Set default toolchain to nightly
+      - name: "Set nightly as default toolchain"
+        run: rustup default nightly
+
+      # Make release build for target platform
+      - uses: actions-rs/cargo@v1
+        name: "Build (release)"
+        with:
+          use-cross: true
+          command: build
+          args: --release --all-features --target ${{ matrix.target }} -Z unstable-options --out-dir "artifacts"
+
+      # Run tests before we publish an artifact... just in case :)
+      - uses: actions-rs/cargo@v1
+        name: "Run tests"
+        with:
+          use-cross: true
+          command: test
+          args: --release --all-features --target ${{ matrix.target }}
+
+      # Get current version from Cargo.toml
+      - uses: SebRollen/toml-action@v1.0.2
+        id: read_project_version # this ID is how we refer to the output of the step
+        with:
+          file: Cargo.toml
+          field: package.version
+
+      # Publish build artifact
+      - uses: actions/upload-artifact@v3
+        name: "Publish build"
+        with:
+          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_${{ matrix.target }}
+          path: artifacts/*
