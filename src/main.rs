@@ -1,4 +1,4 @@
-#![deny(clippy::all)]
+#![deny(clippy::all)] 
 #![warn(clippy::pedantic, clippy::nursery)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![windows_subsystem = "windows"]
