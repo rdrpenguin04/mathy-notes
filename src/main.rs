@@ -391,7 +391,7 @@ impl eframe::App for NotesApp {
                             let s_idx = cursor.secondary.ccursor.index;
                             let start = if p_idx == s_idx {
                                 self.notes_text[..p_idx]
-                                    .rfind(|x| x == '=' || x == '\n')
+                                    .rfind(|x| matches!(x, ':' | '=' | '\n'))
                                     .map_or(0, |x| x + 1)
                             } else {
                                 p_idx.min(s_idx)
