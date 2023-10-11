@@ -1,4 +1,4 @@
-use core::{iter::Peekable, fmt};
+use core::{fmt, iter::Peekable};
 
 #[derive(Debug)]
 pub enum Error {
@@ -340,7 +340,7 @@ fn parse(text: &str) -> Result<Expression> {
 }
 
 /// Evaluate the input expression
-/// 
+///
 /// # Errors
 /// Returns an error upon receiving either an invalid expression or encountering an unknown operator
 pub fn evaluate(text: &str) -> Result<f64> {

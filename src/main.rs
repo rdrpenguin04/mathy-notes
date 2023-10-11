@@ -3,7 +3,7 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![windows_subsystem = "windows"]
 
-use eframe::egui::{self, Modifiers, Ui};
+use eframe::egui::{self, Modifiers, TextStyle, Ui};
 use expr::evaluate;
 
 pub mod expr;
@@ -21,12 +21,16 @@ fn main() {
 #[derive(Default)]
 struct NotesApp {
     notes_text: String,
+    settings_open: bool,
+    fixed_width: bool,
 }
 
 impl NotesApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.storage.map_or_else(Self::default, |storage| Self {
             notes_text: storage.get_string("notes_text").unwrap_or_default(),
+            settings_open: false,
+            fixed_width: matches!(storage.get_string("fixed_width").as_deref(), Some("true")),
         })
     }
 }
@@ -38,9 +42,15 @@ impl eframe::App for NotesApp {
                 x.consume_key(Modifiers::CTRL, egui::Key::Enter)
                     || x.consume_key(Modifiers::SHIFT, egui::Key::Enter)
             });
+            self.settings_open ^= ui.button("Settings").clicked();
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_sized(ui.available_size(), move |ui: &mut Ui| {
-                    let text_edit = egui::TextEdit::multiline(&mut self.notes_text);
+                ui.add_sized(ui.available_size(), |ui: &mut Ui| {
+                    let text_edit =
+                        egui::TextEdit::multiline(&mut self.notes_text).font(if self.fixed_width {
+                            TextStyle::Monospace
+                        } else {
+                            TextStyle::Body
+                        });
                     let mut output = text_edit.show(ui);
                     if eval {
                         if let Some(cursor) = output.cursor_range {
@@ -83,10 +93,16 @@ impl eframe::App for NotesApp {
                 })
             });
         });
+        egui::Window::new("Settings")
+            .open(&mut self.settings_open)
+            .show(ctx, |ui| {
+                ui.checkbox(&mut self.fixed_width, "Enable monospace / fixed-width font");
+            });
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         storage.set_string("notes_text", self.notes_text.clone());
+        storage.set_string("fixed_width", self.fixed_width.to_string());
         storage.flush();
     }
 }
