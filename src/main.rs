@@ -20,7 +20,7 @@ fn main() {
 
 #[derive(Default)]
 struct NotesApp {
-    notes_text: String,
+    notes_list: Vec<String>,
     settings_open: bool,
     fixed_width: bool,
 }
@@ -28,7 +28,10 @@ struct NotesApp {
 impl NotesApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.storage.map_or_else(Self::default, |storage| Self {
-            notes_text: storage.get_string("notes_text").unwrap_or_default(),
+            notes_list: storage
+                .get_string("notes_list")
+                .map(|x| x.split("\x02").map(str::to_owned).collect())
+                .unwrap_or_else(|| vec![storage.get_string("notes_text").unwrap_or_default()]),
             settings_open: false,
             fixed_width: matches!(storage.get_string("fixed_width").as_deref(), Some("true")),
         })
@@ -45,26 +48,27 @@ impl eframe::App for NotesApp {
             self.settings_open ^= ui.button("Settings").clicked();
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.add_sized(ui.available_size(), |ui: &mut Ui| {
-                    let text_edit =
-                        egui::TextEdit::multiline(&mut self.notes_text).font(if self.fixed_width {
+                    let text_edit = egui::TextEdit::multiline(&mut self.notes_list[0]).font(
+                        if self.fixed_width {
                             TextStyle::Monospace
                         } else {
                             TextStyle::Body
-                        });
+                        },
+                    );
                     let mut output = text_edit.show(ui);
                     if eval {
                         if let Some(cursor) = output.cursor_range {
                             let p_idx = cursor.primary.ccursor.index;
                             let s_idx = cursor.secondary.ccursor.index;
                             let start = if p_idx == s_idx {
-                                self.notes_text[..p_idx]
+                                self.notes_list[0][..p_idx]
                                     .rfind(|x| matches!(x, ':' | '=' | '\n'))
                                     .map_or(0, |x| x + 1)
                             } else {
                                 p_idx.min(s_idx)
                             };
                             let end = p_idx.max(s_idx);
-                            let text = &self.notes_text[start..end];
+                            let text = &self.notes_list[0][start..end];
                             let result = evaluate(text);
                             let insertion = format!(
                                 " = {}",
@@ -86,7 +90,7 @@ impl eframe::App for NotesApp {
                                 },
                             ));
                             output.state.store(ctx, output.response.id);
-                            self.notes_text.insert_str(end, &insertion);
+                            self.notes_list[0].insert_str(end, &insertion);
                         }
                     }
                     output.response
@@ -101,7 +105,7 @@ impl eframe::App for NotesApp {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        storage.set_string("notes_text", self.notes_text.clone());
+        storage.set_string("notes_list", self.notes_list.clone().join("\x02")); // non-printable separator
         storage.set_string("fixed_width", self.fixed_width.to_string());
         storage.flush();
     }
