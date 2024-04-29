@@ -3,7 +3,7 @@
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![windows_subsystem = "windows"]
 
-use eframe::egui::{self, Modifiers, TextStyle, Ui};
+use eframe::egui::{self, Modifiers, TextBuffer, TextStyle, Ui};
 use expr::evaluate;
 
 pub mod expr;
@@ -61,14 +61,15 @@ impl eframe::App for NotesApp {
                             let p_idx = cursor.primary.ccursor.index;
                             let s_idx = cursor.secondary.ccursor.index;
                             let start = if p_idx == s_idx {
-                                self.notes_list[0][..p_idx]
+                                self.notes_list[0].char_range(0..p_idx)
                                     .rfind(|x| matches!(x, ':' | '=' | '\n'))
                                     .map_or(0, |x| x + 1)
                             } else {
                                 p_idx.min(s_idx)
                             };
-                            let end = p_idx.max(s_idx);
-                            let text = &self.notes_list[0][start..end];
+                            let end_ch = p_idx.max(s_idx);
+                            let end_byte = self.notes_list[0].byte_index_from_char_index(end_ch);
+                            let text = &self.notes_list[0][start..end_byte];
                             let result = evaluate(text);
                             let insertion = format!(
                                 " = {}",
@@ -77,20 +78,20 @@ impl eframe::App for NotesApp {
                                     Err(x) => x.to_string(),
                                 }
                             );
-                            output.state.set_ccursor_range(Some(
-                                egui::widgets::text_edit::CCursorRange {
+                            output.state.cursor.set_char_range(Some(
+                                egui::text::CCursorRange {
                                     primary: egui::text::CCursor {
-                                        index: end + insertion.len(),
+                                        index: end_ch + insertion.len(),
                                         prefer_next_row: true,
                                     },
                                     secondary: egui::text::CCursor {
-                                        index: end + insertion.len(),
+                                        index: end_ch + insertion.len(),
                                         prefer_next_row: true,
                                     },
                                 },
                             ));
                             output.state.store(ctx, output.response.id);
-                            self.notes_list[0].insert_str(end, &insertion);
+                            self.notes_list[0].insert_str(end_byte, &insertion);
                         }
                     }
                     output.response
