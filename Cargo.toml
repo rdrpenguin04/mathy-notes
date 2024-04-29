@@ -1,6 +1,6 @@
 [package]
 name = "mathy-notes"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Do math in your text editor! Ctrl-Enter or Shift-Enter to evaluate. Mainly a personal project, do not expect stability from this."
 license = "0BSD"
