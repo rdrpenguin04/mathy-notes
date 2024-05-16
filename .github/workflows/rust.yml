@@ -30,8 +30,8 @@ jobs:
         shell: bash
         run: |
           case "${{ matrix.runner }}" in
-            ubuntu-latest)  echo "rustc_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUTS" ;;
-            windows-latest) echo "rustc_target=x86_64-pc-windows-msvc"   >> "$GITHUB_OUTPUTS" ;;
+            ubuntu-latest)  echo "rustc_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUT" ;;
+            windows-latest) echo "rustc_target=x86_64-pc-windows-msvc"   >> "$GITHUB_OUTPUT" ;;
           esac
 
       # Get nightly toolchain
