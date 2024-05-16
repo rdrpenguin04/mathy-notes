@@ -1,38 +1,44 @@
 on:
   workflow_dispatch:
     # Special inputs go here... but we have none
-    
+
   push:
-    branches: [ main ]
+    branches: [main]
 
 name: Rust Build
 
 jobs:
   build:
-    name: Build for ${{ matrix.target }}
-    runs-on: ubuntu-latest
+    name: Build on ${{ matrix.runner }}
     strategy:
       # If a build fails for a given platform, its probably gonna
       # fail on the other platforms as well. Just give up.
       fail-fast: true
 
-      # Specify targets to build for here
       matrix:
-        target: [
-          x86_64-pc-windows-gnu,
-          x86_64-unknown-linux-gnu
-        ]
+        runner: [windows-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.runner }}
 
     steps:
       # Checkout repository
       - uses: actions/checkout@v3
+
+      # Detect which platform we are running on and set the target triple accordingly
+      - name: Detect platform
+        shell: bash
+        run: |
+          case "${{ matrix.runner }}" in
+            ubuntu-latest)  echo "RUSTC_TARGET=x86_64-unknown-linux-gnu" >> $GITHUB_ENV ;;
+            windows-latest) echo "RUSTC_TARGET=x86_64-pc-windows-msvc"   >> $GITHUB_ENV ;;
+          esac
 
       # Get nightly toolchain
       - uses: actions-rs/toolchain@v1
         name: Install nightly toolchain
         with:
           toolchain: nightly
-          target: ${{ matrix.target }}
+          target: $RUSTC_TARGET
 
       # Set default toolchain to nightly
       - name: "Set nightly as default toolchain"
@@ -44,7 +50,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --all-features --target ${{ matrix.target }} -Z unstable-options --out-dir "artifacts"
+          args: --release --all-features --target $RUSTC_TARGET -Z unstable-options --out-dir "artifacts"
 
       # Run tests before we publish an artifact... just in case :)
       - uses: actions-rs/cargo@v1
@@ -52,7 +58,7 @@ jobs:
         with:
           use-cross: true
           command: test
-          args: --release --all-features --target ${{ matrix.target }}
+          args: --release --all-features --target $RUSTC_TARGET
 
       # Get current version from Cargo.toml
       - uses: SebRollen/toml-action@v1.0.2
@@ -65,5 +71,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         name: "Publish build"
         with:
-          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_${{ matrix.target }}
+          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_$RUSTC_TARGET
           path: artifacts/*
