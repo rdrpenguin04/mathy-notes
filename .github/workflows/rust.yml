@@ -26,11 +26,12 @@ jobs:
 
       # Detect which platform we are running on and set the target triple accordingly
       - name: Detect platform
+        id: detect_platform
         shell: bash
         run: |
           case "${{ matrix.runner }}" in
-            ubuntu-latest)  echo "RUSTC_TARGET=x86_64-unknown-linux-gnu" >> "$GITHUB_ENV" ;;
-            windows-latest) echo "RUSTC_TARGET=x86_64-pc-windows-msvc"   >> "$GITHUB_ENV" ;;
+            ubuntu-latest)  echo "rustc_target=x86_64-unknown-linux-gnu" >> "$GITHUB_OUTPUTS" ;;
+            windows-latest) echo "rustc_target=x86_64-pc-windows-msvc"   >> "$GITHUB_OUTPUTS" ;;
           esac
 
       # Get nightly toolchain
@@ -38,7 +39,7 @@ jobs:
         name: Install nightly toolchain
         with:
           toolchain: nightly
-          target: ${{ RUSTC_TARGET }}
+          target: ${{ steps.detect_platform.outputs.rustc_target }}
 
       # Set default toolchain to nightly
       - name: "Set nightly as default toolchain"
@@ -50,7 +51,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --all-features --target ${{ RUSTC_TARGET }} -Z unstable-options --out-dir "artifacts"
+          args: --release --all-features --target ${{ steps.detect_platform.outputs.rustc_target }} -Z unstable-options --out-dir "artifacts"
 
       # Run tests before we publish an artifact... just in case :)
       - uses: actions-rs/cargo@v1
@@ -58,7 +59,7 @@ jobs:
         with:
           use-cross: true
           command: test
-          args: --release --all-features --target ${{ RUSTC_TARGET }}
+          args: --release --all-features --target ${{ steps.detect_platform.outputs.rustc_target }}
 
       # Get current version from Cargo.toml
       - uses: SebRollen/toml-action@v1.0.2
@@ -71,5 +72,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         name: "Publish build"
         with:
-          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_${{ RUSTC_TARGET }}
+          name: mathy-notes_v${{ steps.read_project_version.outputs.value }}_${{ steps.detect_platform.outputs.rustc_target }}
           path: artifacts/*
