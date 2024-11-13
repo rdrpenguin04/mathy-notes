@@ -2,6 +2,7 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 #![windows_subsystem = "windows"]
+#![feature(f128)]
 
 use eframe::egui::{self, Modifiers, TextBuffer, TextStyle, Ui};
 use expr::evaluate;
@@ -74,7 +75,7 @@ impl eframe::App for NotesApp {
                             let insertion = format!(
                                 " = {}",
                                 match result {
-                                    Ok(x) => x.to_string(),
+                                    Ok(x) => (x as f64).to_string(),
                                     Err(x) => x.to_string(),
                                 }
                             );

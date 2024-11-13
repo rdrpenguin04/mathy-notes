@@ -127,13 +127,13 @@ enum BinOp {
 }
 
 enum UnOp {
-    Fn(Box<dyn Fn(f64) -> Result<f64>>),
+    Fn(Box<dyn Fn(f128) -> Result<f128>>),
     Pos,
     Neg,
 }
 
 impl UnOp {
-    fn func(func: impl Fn(f64) -> Result<f64> + 'static) -> Self {
+    fn func(func: impl Fn(f128) -> Result<f128> + 'static) -> Self {
         Self::Fn(Box::new(func))
     }
 }
@@ -158,11 +158,11 @@ enum Expression {
         op: UnOp,
         inner: Box<Expression>,
     },
-    Num(f64),
+    Num(f128),
 }
 
 impl Expression {
-    fn func(func: impl Fn(f64) -> Result<f64> + 'static, arg: Self) -> Self {
+    fn func(func: impl Fn(f128) -> Result<f128> + 'static, arg: Self) -> Self {
         Self::UnOp {
             op: UnOp::func(func),
             inner: Box::new(arg),
@@ -171,7 +171,7 @@ impl Expression {
 }
 
 impl Expression {
-    fn eval(&self) -> Result<f64> {
+    fn eval(&self) -> Result<f128> {
         Ok(match self {
             Self::BinOp { lhs, op, rhs } => match op {
                 BinOp::Add => lhs.eval()? + rhs.eval()?,
@@ -200,14 +200,14 @@ fn bin_bp(op: &str) -> (u8, u8) {
     }
 }
 
-fn parse_num(text: &str) -> Result<f64> {
+fn parse_num(text: &str) -> Result<f128> {
     let mut int_part = 0.0;
     let mut chars = text.chars();
     for c in &mut chars {
         match c {
             '0'..='9' => {
                 int_part *= 10.0;
-                int_part += f64::from(c as u32 - '0' as u32);
+                int_part += f128::from(f64::from(c as u32 - '0' as u32));
             }
             '.' => break,
             _ => Err(Error::Invalid)?,
@@ -218,7 +218,7 @@ fn parse_num(text: &str) -> Result<f64> {
     for c in &mut chars {
         match c {
             '0'..='9' => {
-                float_part += f64::from(c as u32 - '0' as u32) * multiplier;
+                float_part += f128::from(f64::from(c as u32 - '0' as u32)) * multiplier;
                 multiplier /= 10.0;
             }
             '.' => break,
@@ -263,9 +263,9 @@ fn parse_atom(iter: &mut Peekable<impl Iterator<Item = &Lexeme>>) -> Result<Expr
             "sqrt" => Expression::func(|x| Ok(x.sqrt()), parse_arg(iter)?),
             "cbrt" => Expression::func(|x| Ok(x.cbrt()), parse_arg(iter)?),
             "abs" => Expression::func(|x| Ok(x.abs()), parse_arg(iter)?),
-            "e" => Expression::Num(core::f64::consts::E),
-            "pi" => Expression::Num(core::f64::consts::PI),
-            "tau" => Expression::Num(core::f64::consts::TAU),
+            "e" => Expression::Num(core::f128::consts::E),
+            "pi" => Expression::Num(core::f128::consts::PI),
+            "tau" => Expression::Num(core::f128::consts::TAU),
             _ => Err(Error::Unrecognized)?,
         },
         Some(Lexeme::Group(Group { inner })) => parse_bp(&mut inner.iter().peekable(), 0)?,
@@ -343,6 +343,6 @@ fn parse(text: &str) -> Result<Expression> {
 ///
 /// # Errors
 /// Returns an error upon receiving either an invalid expression or encountering an unknown operator
-pub fn evaluate(text: &str) -> Result<f64> {
+pub fn evaluate(text: &str) -> Result<f128> {
     parse(text)?.eval()
 }
