@@ -35,15 +35,10 @@ jobs:
           esac
 
       # Get nightly toolchain
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         name: Install nightly toolchain
         with:
-          toolchain: nightly
           target: ${{ steps.detect_platform.outputs.rustc_target }}
-
-      # Set default toolchain to nightly
-      - name: "Set nightly as default toolchain"
-        run: rustup default nightly
 
       # Make release build for target platform
       - uses: actions-rs/cargo@v1
@@ -54,12 +49,7 @@ jobs:
           args: --release --all-features --target ${{ steps.detect_platform.outputs.rustc_target }} -Z unstable-options --out-dir "artifacts"
 
       # Run tests before we publish an artifact... just in case :)
-      - uses: actions-rs/cargo@v1
-        name: "Run tests"
-        with:
-          use-cross: true
-          command: test
-          args: --release --all-features --target ${{ steps.detect_platform.outputs.rustc_target }}
+      - run: cargo test --release --all-features --target ${{ steps.detect_platform.outputs.rustc_target }}
 
       # Get current version from Cargo.toml
       - uses: SebRollen/toml-action@v1.0.2
